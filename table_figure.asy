@@ -1,15 +1,14 @@
 // -*- mode: C++ -*-
-// Time-stamp: "2016-01-03 19:50:53 sb"
+// Time-stamp: "2016-01-03 22:27:51 sb"
 
 /*
   file       table_figure.asy
   copyright  (c) Sebastian Blatt 2015, 2016
 
 
-  FIXME: Scaling down 2D graphs is subpanels seems to be doing the
+  Scaling down 2D graphs is subpanels seems to be doing the
   right thing now. Need to deal with subpanels where we do not want
-  IgnoreAspect scaling. Need to deal with final fitting of
-  top_figure.p to frame that gets shipped. Something is still off there.
+  IgnoreAspect scaling.
 
 */
 
@@ -17,8 +16,8 @@ import cell_table;
 
 import logging;
 
-void table_figure_message(string msg) = logging_message_fc("table_figure.asy");
-void table_figure_warning(string msg) = logging_message_fc("table_figure.asy");
+void table_figure_message(string msg) = logging_message_fc("t-f");
+void table_figure_warning(string msg) = logging_warning_fc("t-f");
 
 
 void draw_boundary(picture pic, pair bottom_left,
@@ -64,6 +63,133 @@ void draw_bounding_box(picture pic, pair bottom_left,
 }
 
 
+// Try fitting picture P to a rectangle of size SZ. This will fail
+// mostly for 2D graphs because things are stupid and asy cannot guess
+// the actual size of the graph during the picture.fit() optimization
+// routine.
+//
+// Brute force solution: Scale down the target area proportionally
+// until it works...
+//
+struct FitData {
+    picture source_picture;
+    bool keep_aspect;
+    frame fitted_picture;
+    pair target_size;
+    pair fitted_size;
+    real attempt_scale;
+    bool fit_successful;
+
+    void operator init(picture source_picture_,
+                       pair target_size_,
+                       bool keep_aspect_ = false)
+    {
+      source_picture = source_picture_;
+      keep_aspect = keep_aspect_;
+      target_size = target_size_;
+      attempt_scale = 1.0;
+      fit_successful = false;
+    }
+
+    void print_result(){
+      if(fit_successful){
+        table_figure_message("  Fit successful: " + format("%g", fitted_size.x)
+                             + " x " + format("%g", fitted_size.y)
+                             + " (target " + format("%g", target_size.x)
+                             + " x " + format("%g", target_size.y) + ")");
+      }
+      else{
+        table_figure_message("  Fit NOT successful: " + format("%g", fitted_size.x)
+                             + " x " + format("%g", fitted_size.y)
+                             + " (target " + format("%g", target_size.x)
+                             + " x " + format("%g", target_size.y) + ")");
+      }
+    }
+
+    bool attempt_fit(){
+      fitted_picture = source_picture.fit(target_size.x * attempt_scale,
+                                          target_size.y * attempt_scale,
+                                          keep_aspect ? Aspect : IgnoreAspect);
+      fitted_size = max(fitted_picture) - min(fitted_picture);
+      fit_successful = fitted_size.x <= target_size.x && fitted_size.y <= target_size.y;
+      print_result();
+      return fit_successful;
+    }
+
+    bool brute_force_fit(){
+      if(attempt_fit()){
+        return true;
+      }
+
+      real dscale = 0.01;
+      int max_attempts = 20;
+      int attempt = 0;
+      for(attempt = 0; attempt < max_attempts; ++attempt){
+        attempt_scale -= dscale;
+
+        table_figure_message("  Refit attempt " + format("%d", attempt)
+                             + ", scale down target by "
+                             + format("%g", attempt_scale) + " and retry");
+        if(attempt_fit()){
+          break;
+        }
+      }
+
+      // If we fell through max_attempts, assume something went wrong
+      // and punt.
+      if(attempt >= max_attempts-1){
+        table_figure_warning("Too many fit attempts. I will assume it's YOUR fault "
+                             + "and let asy enlarge as it wants.");
+        attempt_scale = 1.0;
+        return attempt_fit();
+      }
+      return true;
+    }
+
+    // Same as above, but try to be clever and do a binary search.
+    bool brute_force_fit2(){
+      if(attempt_fit()){
+        return true;
+      }
+
+      real scale_success = 0.0;
+      real scale_fail = 1.0;
+      real scale_prev = 1.0;
+
+      int max_attempts = 20;
+      int attempt = 0;
+      for(attempt = 0; attempt < max_attempts; ++attempt){
+        scale_prev = attempt_scale;
+        if(fit_successful){
+          attempt_scale = (scale_fail + scale_prev) / 2;
+          scale_success = scale_prev;
+        }
+        else{
+          // Don't waste time going from 1 -> 0.5 on first iteration
+          if(attempt == 0){
+            attempt_scale = 0.95;
+          }
+          else{
+            attempt_scale = (scale_success + scale_prev) / 2;
+            scale_fail = scale_prev;
+          }
+        }
+
+        table_figure_message("  Refit attempt " + format("%d", attempt)
+                             + ", scale down target by "
+                             + format("%g", attempt_scale) + " and retry");
+        attempt_fit();
+      }
+
+      if(attempt >= max_attempts-1 && !fit_successful){
+        table_figure_message("  Last success with scale "
+                             + format("%g", scale_prev) + ", rescale");
+        attempt_scale = scale_prev;
+        attempt_fit();
+      }
+      return true;
+    }
+};
 
 
 struct TableFigure {
@@ -139,6 +265,17 @@ struct TableFigure {
       }
     }
 
+    // Simple debugging to test the effect of point(picture, pair) and
+    // truepoint(picture, pair) vs. bare pair.
+    static void debug_point(picture p, pair pt, pen pn = currentpen){
+      dot(p, pt, pn);
+      label(p, Label("{\tiny (" + format("%g", pt.x) + ","
+                     + format("%g", pt.y) + ")}", pn),
+            pt, SE);
+    }
+
+    // Add labels to the panels. Add these in the top figure to ensure that
+    // the scaling is the same.
     void panel_labels(bool automatic = true,
                       bool capitalize = false,
                       bool leftparen = false,
@@ -150,11 +287,10 @@ struct TableFigure {
     {
       string[] alphabet = {"a", "b", "c", "d", "e", "f", "g", "h"};
       string[] Alphabet = {"A", "B", "C", "D", "E", "F", "G", "H"};
-      //align[] directions = {NE, SE, SW, NW};
-      align[] directions = {SW, NW, NE, SE};
+      align[] directions = {NE, SE, SW, NW};
+      //align[] directions = {SW, NW, NE, SE};
       // Should offset with fontsize(label_pen)
       // linewidth(label_pen), linetype, offset, scale, adjust
-
 
       string[] tag_list = capitalize ? Alphabet : alphabet;
 
@@ -178,64 +314,15 @@ struct TableFigure {
         label(top_figure,
               Label("{\bfseries " + tag + "}", label_pen),
               pos+label_offset, directions[corner]);
+
+        //debug_point(top_figure, pos + label_offset, green);
       }
     }
 
-    // Try fitting picture P to a rectangle of size SZ. However, this
-    // might fail mostly for 2D graphs because things are stupid and
-    // asy cannot guess the actual size of the graph during the fit
-    // optimization routine.
-    //
-    // Brute force solution: Scale down the target area in
-    // proportion until it works...
-    //
-    // TODO: Implement a binary search in the scaling parameter to
-    // maximize the fitted graph area.
-    //
-    static frame brute_force_fit(picture p, pair sz, bool keep_aspect=false){
-      frame fitted_picture = p.fit(sz.x, sz.y,
-                                   keep_aspect ? Aspect : IgnoreAspect);
-      pair fitted_size = max(fitted_picture) - min(fitted_picture);
-      real dscale = 0.01;
-      real scale = 1.0;
 
-      int max_attempts = 20;
-      int attempt = 0;
-      for(attempt = 0; attempt < max_attempts; ++attempt){
-        if(fitted_size.x <= sz.x && fitted_size.y <= sz.y){
-          break;
-        }
-
-        scale -= dscale;
-
-        table_figure_warning("Fit did not work, scale down to "
-                          + format("%g", scale) + " and try again");
-
-        fitted_picture = p.fit(sz.x*scale, sz.y*scale,
-                               keep_aspect ? Aspect : IgnoreAspect);
-
-        fitted_size = max(fitted_picture) - min(fitted_picture);
-
-        table_figure_warning("New size: " + format("%g", fitted_size.x)
-                          + " x " + format("%g", fitted_size.y)
-                          + " for target " + format("%g", sz.x)
-                          + " x " + format("%g", sz.y));
-      }
-
-      // If we fell through max_attempts, assume something went wrong
-      // and punt.
-      if(attempt >= max_attempts-1){
-        table_figure_warning("Too many fit attempts. I will assume it's YOUR fault "
-                          +"and let asy enlarge as it wants.");
-        fitted_picture = p.fit(sz.x, sz.y, keep_aspect ? Aspect : IgnoreAspect);
-        fitted_size = max(fitted_picture) - min(fitted_picture);
-      }
-
-      return fitted_picture;
-    }
-
-
-    void shipout(bool draw_cell_boundaries_ = true, bool draw_cell_boundaries_carefully_ = true)
+    void shipout(bool draw_cell_boundaries_ = true,
+                 bool draw_cell_boundaries_carefully_ = true
+                )
     {
       if(draw_cell_boundaries_){
         draw_cell_boundaries(draw_cell_boundaries_carefully_);
@@ -245,21 +332,20 @@ struct TableFigure {
         Cell c = layout.cells[i];
         picture q = panels[i];
 
-        frame fitted_picture = brute_force_fit(q, (c.width, c.height));
-        pair dx = point(fitted_picture, SW);
+        table_figure_message("Fit panel \"" + index_cell(i).label + "\"");
+        FitData fd = FitData(q, (c.width, c.height), false);
+        fd.brute_force_fit2();
+        pair dx = point(fd.fitted_picture, SW);
 
-        add(top_figure, fitted_picture, c.bottom_left - dx);
+        add(top_figure, fd.fitted_picture, c.bottom_left - dx);
       }
 
-      // FIXME: Final size can also fail!!! Need to do scaling here as well.
-      frame top_figure_frame = brute_force_fit(top_figure,
-                                               (width, height),
-                                               true);
-      write(max(top_figure_frame) - min(top_figure_frame));
+      // Final size can also fail!!! Need to do scaling here as well.
+      table_figure_message("Fit top figure");
+      FitData fd = FitData(top_figure, (width, height), true);
+      fd.brute_force_fit2();
 
-
-      shipout(top_figure_frame, "pdf");
-      //shipout(top_figure_frame, "eps");
+      shipout(fd.fitted_picture, "pdf");
     }
 
     static void draw_and_size_panel(picture panel,

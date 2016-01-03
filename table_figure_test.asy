@@ -1,5 +1,5 @@
 // -*- mode: C++ -*-
-// Time-stamp: "2016-01-03 19:38:45 sb"
+// Time-stamp: "2016-01-03 22:28:33 sb"
 
 /*
   file       table_figure_test.asy
@@ -57,7 +57,7 @@ void main(){
   real height = width / golden_ratio;
 
   // draw borders around figure for positioning
-  bool draw_region_borders = true;
+  bool draw_region_borders = false;
 
   // use regular or custom grid layout
   bool use_regular_grid = false;
@@ -75,7 +75,7 @@ void main(){
     f.draw_and_size_panel(p, draw_graph);
   }
 
-  //f.panel_labels(automatic = false, capitalize = true, corner = 1);
+  f.panel_labels(automatic = false, capitalize = true, corner = 1);
 
   f.shipout(draw_region_borders);
 }

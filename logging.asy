@@ -1,9 +1,9 @@
 // -*- mode: C++ -*-
-// Time-stamp: "2015-02-25 11:16:59 sb"
+// Time-stamp: "2016-01-03 21:49:29 sb"
 
 /*
   file       logging.asy
-  copyright  (c) Sebastian Blatt 2015
+  copyright  (c) Sebastian Blatt 2015, 2016
 
   Simple log and warning interface.
 
