@@ -20,5 +20,8 @@ Because of the powerful late object scaling intrinsic to asymptote,
 such a grid layout is notoriously difficult to achieve cleanly. This
 module is an attempt at easing the creation of such figures.
 
-A complex example created entirely in asymptote is Fig. 2 of
-Phys. Rev. A 92, 021402(R) (2015), http://dx.doi.org/10.1103/PhysRevA.92.021402
+A complex example created entirely in asymptote is Fig. 2 of Phys.
+Rev. A 92, 021402(R) (2015)
+(http://dx.doi.org/10.1103/PhysRevA.92.021402). The figure can seen
+without having access to the full paper by clicking on the thumbnail
+in the abstract.
