@@ -1,9 +1,9 @@
 // -*- mode: C++ -*-
-// Time-stamp: "2015-12-16 13:22:45 sb"
+// Time-stamp: "2016-01-03 19:50:53 sb"
 
 /*
   file       table_figure.asy
-  copyright  (c) Sebastian Blatt 2015
+  copyright  (c) Sebastian Blatt 2015, 2016
 
 
   FIXME: Scaling down 2D graphs is subpanels seems to be doing the
@@ -199,7 +199,7 @@ struct TableFigure {
       real dscale = 0.01;
       real scale = 1.0;
 
-      int max_attempts = 10;
+      int max_attempts = 20;
       int attempt = 0;
       for(attempt = 0; attempt < max_attempts; ++attempt){
         if(fitted_size.x <= sz.x && fitted_size.y <= sz.y){
